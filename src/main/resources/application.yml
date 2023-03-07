@@ -1,0 +1,20 @@
+server:
+  port: 1989
+  error:
+    whitelabel:
+      enabled: false
+
+spring:
+  application:
+    name: culturapp
+  sleuth:
+    baggage:
+      remote-fields: #list of header names to accept and propagate to remote services.
+        - obTraceId
+        - obSessionId
+      correlation-fields: # Automatically set the baggage values to Slf4j’s MDC
+        - obTraceId
+        - obSessionId
+logging:
+  level:
+    root: INFO

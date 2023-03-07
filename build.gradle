@@ -1,14 +1,92 @@
 plugins {
+	id 'org.springframework.boot' version '2.7.1'
+	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
 	id 'java'
+	id "org.sonarqube" version "3.3"
+	id 'org.kordamp.gradle.jacoco' version '0.47.0'
 }
 
-group = 'com'
-version = '0.0.1-SNAPSHOT'
+group = 'com.culturapp'
 sourceCompatibility = '11'
+
+/*sonarqube {
+	properties {
+		property "sonar.projectKey", "OnLab-by-Santander_f1rst-log-service"
+		property "sonar.organization", "onlab-by-santander"
+		property "sonar.host.url", "https://sonarcloud.io"
+		property "sonar.tests", "src/test"
+		property "sonar.java.binaries", "build/libs"
+		property "sonar.java.coveragePlugin", "jacoco"
+		property "sonar.coverage.jacoco.xmlReportPaths", "../build/reports/jacoco/aggregate/jacocoTestReport.xml"
+	}
+}*/
+
+config {
+	coverage {
+		jacoco {
+			enabled
+			aggregateExecFile
+			aggregateReportHtmlFile
+			aggregateReportXmlFile
+			additionalSourceDirs
+			additionalClassDirs
+		}
+	}
+}
 
 repositories {
 	mavenCentral()
 }
 
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+bootJar {
+	enabled = true
+	mainClass.set('com.culturapp.CulturappApplication')
+}
+
+ext {
+	set('springCloudVersion', "2021.0.3")
+}
+
 dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.cloud:spring-cloud-starter-sleuth'
+	implementation 'org.apache.commons:commons-lang3:3.12.0'
+
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+tasks.named('sonarqube').configure {
+	dependsOn test
+}
+
+jacocoTestCoverageVerification {
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = 0.0
+			}
+		}
+	}
 }

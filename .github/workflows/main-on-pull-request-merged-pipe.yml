@@ -1,0 +1,105 @@
+name: Continuous Deployment (PROD Environment)
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  check-source-branch:
+    name: Check source branch syntax
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Use github actions. "
+        uses: actions/checkout@v2
+      - name: "Check source branch syntax is OK"
+        if: ${{ startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/') }}
+        run: |
+          echo "Source branch OK. "
+          exit 0
+      - name: "Check source branch syntax is NO OK"
+        if: ${{ !startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'hotfix/') }}
+        run: |
+          echo "Incorrect source branch name, please check branching model strategy in confluence. "
+          exit 1
+  deploy-to-dev:
+    needs: check-source-branch
+    name: Push docker image to azure registry
+    env:
+      repo-name: 'f1rst-log-service'
+      NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+      JAVA_HOME: '/usr/lib/jvm/java-11-openjdk'
+    runs-on: [ runner-onlab ]
+    steps:
+        # checkout the repo
+        - name: 'Checkout GitHub Action'
+          uses: actions/checkout@main
+        - name: 'Generate Binary Distribution'
+          run: |
+            chmod +x gradlew
+            ./gradlew clean bootJar
+        - name: 'Build and push image'
+          uses: azure/docker-login@v1
+          with:
+            login-server: ${{ secrets.REGISTRY_LOGIN_SERVER_PROD }}
+            username: ${{ secrets.REGISTRY_USERNAME_PROD }}
+            password: ${{ secrets.REGISTRY_PASSWORD_PROD }}
+        - run: |
+            docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER_PROD }}/${{ env.repo-name }}:${{ github.sha }}
+            docker push ${{ secrets.REGISTRY_LOGIN_SERVER_PROD }}/${{ env.repo-name }}:${{ github.sha }}
+  update-software-deployments:
+    needs: deploy-to-dev
+    name: Update Software deployments
+    env:
+      repo-name: 'Santander-software-deployments'
+    runs-on: [ ubuntu-latest ]
+    steps:        
+      - name: Check out Software Deployments
+        uses: actions/checkout@main
+        with:
+          repository: OnLab-by-Santander/Santander-software-deployments
+          token: ${{ secrets.SOFTWARE_DEPLOYMENTS_TOKEN }}    
+          ref: produccion
+      - name: 'Echo sha'
+        run: |
+          echo ${{ github.sha }}
+      - name: 'Echo Files'
+        run: |
+          ls -la ./services/f1rst-log-service/
+      - name: Update Image Version in the related HelmChart values.yaml
+        uses: fjogeleit/yaml-update-action@master
+        with:
+          valueFile: 'services/f1rst-log-service/values.yaml'
+          propertyPath: $['ob-chart']['image']['tag']
+          value: ${{ github.sha }}
+          branch: produccion
+          targetBranch: produccion
+          createPR: false
+          masterBranchName: main
+          updateFile: true
+          token: ${{ secrets.SOFTWARE_DEPLOYMENTS_TOKEN }}
+          message: 'Update Image Version to ${{ github.sha }}'
+          repository: OnLab-by-Santander/Santander-software-deployments
+      - name: 'Cat Files'
+        run: |
+          cat ./services/f1rst-log-service/values.yaml         
+            
+  slackNotification:
+    needs: deploy-to-dev
+    name: Slack Notification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: onboarding-code-review
+          SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+          SLACK_ICON: https://avatars.githubusercontent.com/u/44036562?s=280&v=4
+          SLACK_MESSAGE: 'Deployed to PRO environment'
+          SLACK_TITLE: Deployed to PRO environment
+          SLACK_USERNAME: DevOps-Bot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

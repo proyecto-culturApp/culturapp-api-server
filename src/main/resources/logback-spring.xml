@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty scope="context" name="springAppName" source="spring.application.name"/>
+    <property name="APPLICATION_CONSOLE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [idSesion:%X{obSessionId:-}, idRequest:%X{traceId:-}, componente:${springAppName}, idAgrupadorOperacionNegocio:%X{obTraceId:-}] %p %t %logger{35} - %m %ex %n"/>
+    <appender name="APPLICATION_CONSOLE_LOG_APPENDER" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${APPLICATION_CONSOLE_LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <property name="SPRING_CONSOLE_LOG_PATTERN"
+              value="  %d{yyyy-MM-dd HH:mm:ss.SSS} [componente:${springAppName}] %p %t %logger{35} - %m %ex %n"/>
+    <appender name="SPRING_CONSOLE_LOG_APPENDER" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${SPRING_CONSOLE_LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.springframework">
+        <appender-ref ref="SPRING_CONSOLE_LOG_APPENDER" />
+    </logger>
+    <logger name="com.santander">
+        <appender-ref ref="APPLICATION_CONSOLE_LOG_APPENDER"/>
+    </logger>
+
+    <root/>
+
+</configuration>

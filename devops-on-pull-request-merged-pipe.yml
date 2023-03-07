@@ -1,0 +1,53 @@
+#  Continuous Integration (Feature Branch)
+
+variables:
+  GRADLE_USER_HOME: $(Pipeline.Workspace)/.gradle/caches
+  SONARCLOUD_HOME: $(Pipeline.Workspace)/.sonar/cache
+  imageName: 'f1rst-log-service'
+  isDevelopBranch:  $[startsWith(variables['Build.SourceBranch'], 'refs/heads/develop')]
+  isPreprodBranch:  $[startsWith(variables['Build.SourceBranch'], 'refs/heads/preprod')]
+  isMainBranch:  $[startsWith(variables['Build.SourceBranch'], 'refs/heads/main')]
+
+trigger:
+  branches:
+    include:
+    - preprod
+    - main
+
+pool:
+  name: Default
+  vmImage: 'ubuntu-latest'
+
+jobs:
+
+# Build de la solución
+- job: Build
+#  condition: or(eq(variables.isPreprodBranch, 'true'), eq(variables.isMainBranch, 'true'))
+  steps: 
+  - task: Gradle@2
+    displayName: Generate Binary Distribution'
+    inputs:
+      gradleWrapperFile: 'gradlew'
+      tasks: 'clean bootJar'
+      options: -Dhttp.proxyHost=$(http_proxy_host) -Dhttp.proxyPort=$(http_proxy_port) -Dhttps.proxyHost=$(https_proxy_host) -Dhttps.proxyPort=$(https_proxy_port) 
+  - task: Docker@2
+    condition: eq(variables.isPreprodBranch, 'true')
+    displayName: Generate Dockerfile & push to ACR in PRE environment'
+    inputs:
+      command: buildAndPush
+      repository: $(imageName)
+      dockerfile: $(Build.SourcesDirectory)/Dockerfile
+      containerRegistry: $(PREcontainerRegistry)
+      tags: |
+        $(Build.SourceVersion)
+
+  - task: Docker@2
+    condition: eq(variables.isMainBranch, 'true')
+    displayName: Generate Dockerfile & push to ACR in PROD environment'
+    inputs:
+      command: buildAndPush
+      repository: $(imageName)
+      dockerfile: $(Build.SourcesDirectory)/Dockerfile
+      containerRegistry: $(PROcontainerRegistry)
+      tags: |
+        $(Build.SourceVersion)      
